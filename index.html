@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>桃太郎の冒険：エンハンスドバージョン</title>
+    <style>
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f0f0; font-family: Arial, sans-serif; }
+        #gameContainer { text-align: center; position: relative; }
+        #gameCanvas { border: 2px solid #000; }
+        #score { margin-top: 10px; font-size: 20px; }
+        #message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 48px; color: gold; display: none; }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div id="score">きび団子: 0</div>
+        <div id="message"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const messageElement = document.getElementById('message');
+
+        const gameState = {
+            player: { x: 200, y: 200, size: 20, speed: 5 },
+            kibidango: [],
+            collectedKibidango: [],
+            score: 0,
+            effects: []
+        };
+
+        function createKibidango() {
+            return {
+                x: Math.random() * (canvas.width - 20) + 10,
+                y: Math.random() * (canvas.height - 20) + 10,
+                size: 10,
+                color: 'orange',
+                hitCount: 0
+            };
+        }
+
+        for (let i = 0; i < 5; i++) {
+            gameState.kibidango.push(createKibidango());
+        }
+
+        const keys = {};
+
+        document.addEventListener('keydown', (e) => keys[e.key] = true);
+        document.addEventListener('keyup', (e) => keys[e.key] = false);
+
+        function update() {
+            if (keys['ArrowUp']) gameState.player.y -= gameState.player.speed;
+            if (keys['ArrowDown']) gameState.player.y += gameState.player.speed;
+            if (keys['ArrowLeft']) gameState.player.x -= gameState.player.speed;
+            if (keys['ArrowRight']) gameState.player.x += gameState.player.speed;
+
+            gameState.player.x = Math.max(0, Math.min(canvas.width - gameState.player.size, gameState.player.x));
+            gameState.player.y = Math.max(0, Math.min(canvas.height - gameState.player.size, gameState.player.y));
+
+            gameState.kibidango = gameState.kibidango.filter(dango => {
+                const dx = gameState.player.x - dango.x;
+                const dy = gameState.player.y - dango.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < gameState.player.size / 2 + dango.size) {
+                    dango.hitCount++;
+                    if (dango.hitCount === 1) {
+                        dango.color = 'red';
+                        gameState.effects.push({ x: dango.x, y: dango.y, size: 20, age: 0, color: 'red' });
+                    } else if (dango.hitCount === 2) {
+                        dango.color = 'purple';
+                        gameState.effects.push({ x: dango.x, y: dango.y, size: 20, age: 0, color: 'purple' });
+                    } else {
+                        gameState.score++;
+                        scoreElement.textContent = `きび団子: ${gameState.score}`;
+                        gameState.effects.push({ x: dango.x, y: dango.y, size: 20, age: 0, color: 'yellow' });
+                        gameState.collectedKibidango.push({ color: 'yellow' });
+                        if (gameState.score === 10) {
+                            showMessage("More 10", 48);
+                        } else if (gameState.score === 20) {
+                            showPerfect();
+                        }
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            while (gameState.kibidango.length < 5) {
+                gameState.kibidango.push(createKibidango());
+            }
+
+            gameState.effects = gameState.effects.filter(effect => {
+                effect.age++;
+                effect.size += 2;
+                return effect.age < 10;
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'blue';
+            ctx.fillRect(gameState.player.x - gameState.player.size / 2, gameState.player.y - gameState.player.size / 2, gameState.player.size, gameState.player.size);
+
+            gameState.kibidango.forEach(dango => {
+                ctx.fillStyle = dango.color;
+                ctx.beginPath();
+                ctx.arc(dango.x, dango.y, dango.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            gameState.effects.forEach(effect => {
+                ctx.strokeStyle = effect.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+
+            gameState.collectedKibidango.forEach((dango, index) => {
+                ctx.fillStyle = dango.color;
+                ctx.beginPath();
+                ctx.arc(10 + (index % 10) * 20, canvas.height - 10 - Math.floor(index / 10) * 20, 8, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function showMessage(text, finalSize) {
+            messageElement.textContent = text;
+            messageElement.style.display = 'block';
+            messageElement.style.fontSize = '0px';
+            let size = 0;
+            const interval = setInterval(() => {
+                size += 2;
+                messageElement.style.fontSize = size + 'px';
+                if (size >= finalSize) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        messageElement.style.display = 'none';
+                    }, 2000);
+                }
+            }, 20);
+        }
+
+        function showPerfect() {
+            messageElement.textContent = "Perfect!";
+            messageElement.style.display = 'block';
+            messageElement.style.fontSize = '0px';
+            let size = 0;
+            let rotation = 0;
+            const interval = setInterval(() => {
+                size += 4;
+                messageElement.style.fontSize = size + 'px';
+                if (size >= 96) {
+                    clearInterval(interval);
+                    const rotateInterval = setInterval(() => {
+                        rotation += 10;
+                        messageElement.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+                        if (rotation >= 360) {
+                            clearInterval(rotateInterval);
+                            setTimeout(() => {
+                                messageElement.style.display = 'none';
+                                messageElement.style.transform = 'translate(-50%, -50%)';
+                            }, 1000);
+                        }
+                    }, 20);
+                }
+            }, 20);
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
